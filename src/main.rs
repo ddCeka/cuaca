@@ -185,7 +185,7 @@ fn main() {
 
         let date = if config.showdate {
             let now = Utc::now();
-            now.format("%x").to_string()
+            now.format("%d-%m-%Y").to_string()
         } else {
             String::new()
         };
