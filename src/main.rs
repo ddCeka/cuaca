@@ -185,7 +185,7 @@ fn main() {
 
         let date = if config.showdate {
             let now = Utc::now();
-            now.format("%d-%m-%Y").to_string()
+            now.format("%A, %d %B %Y").to_string()
         } else {
             String::new()
         };
@@ -211,7 +211,7 @@ fn main() {
                         String::new()
                     },
                     if config.use_colors {
-                        "Weather: clear".yellow().bold().to_string()
+                        "Weather: clear".bold().white().to_string()
                     } else {
                         "Weather: clear".to_string()
                     },
@@ -228,12 +228,12 @@ fn main() {
                         format!("Sunset: {sunsetstring}")
                     },
                     if config.use_colors {
-                        date_label.white().to_string()
+                        date_label.cyan().to_string()
                     } else {
                         date_label.to_string()
                     },
                     if config.use_colors {
-                        date_value.white().to_string()
+                        date_value.cyan().to_string()
                     } else {
                         date_value.to_string()
                     }
@@ -255,7 +255,7 @@ fn main() {
                         String::new()
                     },
                     if config.use_colors {
-                        "Weather: cloudy".bold().magenta().to_string()
+                        "Weather: cloudy".bold().white().to_string()
                     } else {
                         "Weather: cloudy".to_string()
                     },
@@ -316,12 +316,12 @@ fn main() {
                         format!("Sunset: {sunsetstring}")
                     },
                     if config.use_colors {
-                        date_label.white().to_string()
+                        date_label.cyan().to_string()
                     } else {
                         date_label.to_string()
                     },
                     if config.use_colors {
-                        date_value.white().to_string()
+                        date_value.cyan().to_string()
                     } else {
                         date_value.to_string()
                     }
@@ -343,7 +343,7 @@ fn main() {
                         String::new()
                     },
                     if config.use_colors {
-                        "Weather: snowy".bold().magenta().to_string()
+                        "Weather: snowy".bold().white().to_string()
                     } else {
                         "Weather: snowy".to_string()
                     },
@@ -360,12 +360,12 @@ fn main() {
                         format!("Sunset: {sunsetstring}")
                     },
                     if config.use_colors {
-                        date_label.white().to_string()
+                        date_label.cyan().to_string()
                     } else {
                         date_label.to_string()
                     },
                     if config.use_colors {
-                        date_value.white().to_string()
+                        date_value.cyan().to_string()
                     } else {
                         date_value.to_string()
                     }
@@ -387,7 +387,7 @@ fn main() {
                         String::new()
                     },
                     if config.use_colors {
-                        "Weather: thundery".bold().black().to_string()
+                        "Weather: thundery".bold().white().to_string()
                     } else {
                         "Weather: thundery".to_string()
                     },
@@ -404,12 +404,12 @@ fn main() {
                         format!("Sunset: {sunsetstring}")
                     },
                     if config.use_colors {
-                        date_label.white().to_string()
+                        date_label.cyan().to_string()
                     } else {
                         date_label.to_string()
                     },
                     if config.use_colors {
-                        date_value.white().to_string()
+                        date_value.cyan().to_string()
                     } else {
                         date_value.to_string()
                     }
@@ -448,12 +448,12 @@ fn main() {
                         format!("Sunset: {sunsetstring}")
                     },
                     if config.use_colors {
-                        date_label.white().to_string()
+                        date_label.black().to_string()
                     } else {
                         date_label.to_string()
                     },
                     if config.use_colors {
-                        date_value.white().to_string()
+                        date_value.magenta().to_string()
                     } else {
                         date_value.to_string()
                     }
