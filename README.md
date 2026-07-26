@@ -1,10 +1,9 @@
 # Cuaca
 
-Cuaca is a command-line application that fetches and displays weather information from the OpenWeatherMap API.
+![cuaca](assets/cuaca.png)
+
 Cuaca's idea, structure and design is based off [Wttr.in](script/wttr.in) but writen in Rust instead of shell script.
 The original script have tables that didn't fit on small screen
-
-![cuaca](assets/cuaca.png)
 
 ## Installation
 
