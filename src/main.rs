@@ -227,7 +227,12 @@ fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>)
                 r"   /   \     ",
                 "             ",
             ],
-            apply_hex_color("Weather: clear", &config.color.clear, config.use_colors, true),
+            apply_hex_color(
+                "Weather: clear",
+                &config.color.clear,
+                config.use_colors,
+                true,
+            ),
         ),
         "Clouds" => (
             [
@@ -256,7 +261,12 @@ fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>)
                 "               ",
                 "               ",
             ],
-            apply_hex_color("Weather: rainy", &config.color.rain, config.use_colors, true),
+            apply_hex_color(
+                "Weather: rainy",
+                &config.color.rain,
+                config.use_colors,
+                true,
+            ),
         ),
         "Snow" => (
             [
@@ -268,7 +278,12 @@ fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>)
                 "  * * * *      ",
                 "               ",
             ],
-            apply_hex_color("Weather: snowy", &config.color.snow, config.use_colors, true),
+            apply_hex_color(
+                "Weather: snowy",
+                &config.color.snow,
+                config.use_colors,
+                true,
+            ),
         ),
         "Thunderstorm" => (
             [
