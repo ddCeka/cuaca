@@ -87,19 +87,30 @@ fn default_config_path() -> PathBuf {
 
 fn format_help(config_path: &Path) -> String {
     format!(
-        "cuaca {}
-Minimalist terminal weather CLI powered by OpenWeatherMap
-
-USAGE:
-    cuaca [OPTIONS]
-
-OPTIONS:
-    -h, --help       Print help information
-    -V, --version    Print version information
-
-CONFIGURATION:
-    Config file location: {}
-    Run cuaca once to generate a default configuration file.",
+        "cuaca {} - A lightweight CLI weather forecast tool\n\n\
+USAGE:\n    \
+    cuaca [OPTIONS]\n\n\
+OPTIONS:\n    \
+    -h, --help     Print help information\n    \
+    -V, --version  Print version information\n\n\
+CONFIGURATION:\n    \
+    On first run default config file is created automatically at:\n    \
+    {}\n\n    \
+    General keys:\n    \
+    api_key        OpenWeatherMap API key (required)\n    \
+    city           City name, e.g. \"London, GB\" (required)\n    \
+    units          \"metric\" (°C, m/s) or \"imperial\" (°F, mph)\n    \
+    timeplus       Hours to add to UTC for local time/date\n    \
+    timeminus      Hours to subtract from UTC for local time/date\n    \
+    showcityname   Display the city name (true/false)\n    \
+    showdate       Display the current date (true/false)\n    \
+    timeformat     \"24\" or \"12\" hour clock format\n    \
+    use_colors     Enable 24-bit ANSI hex colors (true/false)\n\n    \
+    [color] section:\n    \
+    Customize individual elements with #RRGGBB hex codes \n    \
+    (e.g city, temp, wind, sunrise, sunset, date_label,\n    \
+    date_value, clear, clouds, rain, snow, thunderstorm, other).\n\n    \
+See README.md for full examples and default hex values.",
         env!("CARGO_PKG_VERSION"),
         config_path.display()
     )
@@ -368,7 +379,7 @@ fn main() {
                 return;
             }
             other => {
-                eprintln!("Unknown option '{other}'. Run 'cuaca --help' for usage.");
+                eprintln!("Unknown argument: {other}\nTry 'cuaca --help' for more information.");
                 process::exit(1);
             }
         }
@@ -420,9 +431,12 @@ mod tests {
     fn renders_help_text_with_version_and_config_path() {
         let help = format_help(Path::new("/tmp/cuaca/cuaca.toml"));
         assert!(help.contains(env!("CARGO_PKG_VERSION")));
+        assert!(help.contains("/tmp/cuaca/cuaca.toml"));
         assert!(help.contains("--help"));
         assert!(help.contains("--version"));
-        assert!(help.contains("/tmp/cuaca/cuaca.toml"));
+        assert!(help.contains("CONFIGURATION:"));
+        assert!(help.contains("api_key"));
+        assert!(help.contains("[color] section:"));
     }
 
     #[test]
