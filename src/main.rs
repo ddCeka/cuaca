@@ -1,5 +1,4 @@
 use chrono::{DateTime, Duration, TimeZone, Utc};
-use colored::{Color, Colorize};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -120,7 +119,7 @@ fn read_config() -> Config {
     load_or_init_config(&default_config_path())
 }
 
-fn parse_hex_color(hex: &str) -> Option<Color> {
+fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
     let hex = hex.trim().strip_prefix('#').unwrap_or(hex.trim());
     if hex.len() != 6 {
         return None;
@@ -128,7 +127,7 @@ fn parse_hex_color(hex: &str) -> Option<Color> {
     let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
     let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
     let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-    Some(Color::TrueColor { r, g, b })
+    Some((r, g, b))
 }
 
 fn apply_hex_color(text: &str, hex: &str, use_colors: bool, bold: bool) -> String {
@@ -136,21 +135,10 @@ fn apply_hex_color(text: &str, hex: &str, use_colors: bool, bold: bool) -> Strin
         return text.to_string();
     }
     match parse_hex_color(hex) {
-        Some(color) => {
-            let styled = text.color(color);
-            if bold {
-                styled.bold().to_string()
-            } else {
-                styled.to_string()
-            }
-        }
-        None => {
-            if bold {
-                text.bold().to_string()
-            } else {
-                text.to_string()
-            }
-        }
+        Some((r, g, b)) if bold => format!("\x1b[1;38;2;{r};{g};{b}m{text}\x1b[0m"),
+        Some((r, g, b)) => format!("\x1b[38;2;{r};{g};{b}m{text}\x1b[0m"),
+        None if bold => format!("\x1b[1m{text}\x1b[0m"),
+        None => text.to_string(),
     }
 }
 
@@ -349,10 +337,6 @@ fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>)
 fn main() {
     let config = read_config();
 
-    if config.use_colors {
-        colored::control::set_override(true);
-    }
-
     let client = Client::new();
     let response = client
         .get("https://api.openweathermap.org/data/2.5/weather")
@@ -486,8 +470,6 @@ temp = "#123456"
 
     #[test]
     fn applies_hex_truecolor_and_ignores_invalid_hex() {
-        colored::control::set_override(true);
-
         let data = json!({
             "weather": [{ "main": "Rain" }],
             "main": { "temp": 25.0 },
