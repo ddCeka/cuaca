@@ -2,10 +2,14 @@
 
 ![cuaca](assets/cuaca.png)
 
-Cuaca's idea, structure and design is based off [Wttr.in](script/wttr.in) but writen in Rust instead of shell script.
-The original script have tables that didn't fit on small screen
+Cuaca's idea, structure and design is based off [Wttr.in](script/wttr.in) but written in Rust instead of shell script.
+The original script had tables that didn't fit on small screens.
 
 ## Installation
+
+### Prerequisites
+
+- Rust 1.85.0 or newer (required for Rust 2024 edition)
 
 ### From source:
 
@@ -23,19 +27,25 @@ The original script have tables that didn't fit on small screen
 
 ## Configuration
 
-The application uses a configuration file located at `~/.config/cuaca/cuaca.toml`. If the configuration file does not exist, a default one will be created.
+The application uses a configuration file located in your system's configuration directory:
+
+- **Linux:** `~/.config/cuaca/cuaca.toml`
+- **macOS:** `~/Library/Application Support/cuaca/cuaca.toml`
+- **Windows:** `%APPDATA%\cuaca\cuaca.toml`
+
+If the configuration file does not exist (or is missing fields), default values will be created and saved automatically.
 
 ### Configuration Options
 
 - `api_key`: Your OpenWeatherMap API key.
-- `city`: The city for which to fetch weather data.
+- `city`: The city for which to fetch weather data (e.g., `"London, GB"` or `"New York"`).
 - `units`: Units for temperature and wind speed (`metric` or `imperial`).
-- `timeplus`: Hours to add to the UTC timezone, you can find your timezone here https://www.timeanddate.com/.
-- `timeminus`: Hours to subtract from the UTC timezone, you can find your timezone here https://www.timeanddate.com/.
+- `timeplus`: Hours to add to the UTC timezone for date, sunrise, and sunset times. You can find your timezone at https://www.timeanddate.com/.
+- `timeminus`: Hours to subtract from the UTC timezone for date, sunrise, and sunset times. You can find your timezone at https://www.timeanddate.com/.
 - `showcityname`: Whether to display the city name (`true` or `false`).
 - `showdate`: Whether to display the current date (`true` or `false`).
 - `timeformat`: Time format for sunrise and sunset times (`24` or `12`).
-- `use_colors`: Enables and disabled text colors (`true` or `false`).
+- `use_colors`: Enables or disables text colors (`true` or `false`).
 
 Example configuration:
 
