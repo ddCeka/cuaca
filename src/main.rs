@@ -2,9 +2,11 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::env;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process;
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 #[serde(default)]
@@ -81,6 +83,26 @@ fn default_config_path() -> PathBuf {
     path.push("cuaca");
     path.push("cuaca.toml");
     path
+}
+
+fn format_help(config_path: &Path) -> String {
+    format!(
+        "cuaca {}
+Minimalist terminal weather CLI powered by OpenWeatherMap
+
+USAGE:
+    cuaca [OPTIONS]
+
+OPTIONS:
+    -h, --help       Print help information
+    -V, --version    Print version information
+
+CONFIGURATION:
+    Config file location: {}
+    Run cuaca once to generate a default configuration file.",
+        env!("CARGO_PKG_VERSION"),
+        config_path.display()
+    )
 }
 
 fn load_or_init_config(config_path: &Path) -> Config {
@@ -335,6 +357,27 @@ fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>)
 }
 
 fn main() {
+    if let Some(arg) = env::args().nth(1) {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                println!("{}", format_help(&default_config_path()));
+                return;
+            }
+            "-V" | "--version" => {
+                println!("cuaca {}", env!("CARGO_PKG_VERSION"));
+                return;
+            }
+            other => {
+                eprintln!("Unknown option '{other}'. Run 'cuaca --help' for usage.");
+                process::exit(1);
+            }
+        }
+    }
+
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+
     let config = read_config();
 
     let client = Client::new();
@@ -371,6 +414,15 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("cuaca_{test_name}_{nanos}.toml"))
+    }
+
+    #[test]
+    fn renders_help_text_with_version_and_config_path() {
+        let help = format_help(Path::new("/tmp/cuaca/cuaca.toml"));
+        assert!(help.contains(env!("CARGO_PKG_VERSION")));
+        assert!(help.contains("--help"));
+        assert!(help.contains("--version"));
+        assert!(help.contains("/tmp/cuaca/cuaca.toml"));
     }
 
     #[test]
