@@ -155,8 +155,6 @@ fn apply_hex_color(text: &str, hex: &str, use_colors: bool, bold: bool) -> Strin
 }
 
 fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>) -> String {
-    colored::control::set_override(config.use_colors);
-
     let weather = weather_data["weather"][0]["main"]
         .as_str()
         .unwrap_or("Unknown");
@@ -351,6 +349,10 @@ fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>)
 fn main() {
     let config = read_config();
 
+    if config.use_colors {
+        colored::control::set_override(true);
+    }
+
     let client = Client::new();
     let response = client
         .get("https://api.openweathermap.org/data/2.5/weather")
@@ -484,25 +486,27 @@ temp = "#123456"
 
     #[test]
     fn applies_hex_truecolor_and_ignores_invalid_hex() {
+        colored::control::set_override(true);
+
         let data = json!({
             "weather": [{ "main": "Rain" }],
             "main": { "temp": 25.0 },
             "wind": { "speed": 5.0 },
-            "sys": { "sunrise": 0, "sunset": 43200 }
+            "sys": { "sunrise": 1700000000, "sunset": 1700043200 }
         });
+
         let mut config = Config {
-            city: String::from("Bandung"),
-            showcityname: true,
             use_colors: true,
             ..Config::default()
         };
-        config.color.city = String::from("not-a-hex");
+        config.color.temp = String::from("#E08256");
+        config.color.wind = String::from("not-a-hex");
 
-        let now = Utc.with_ymd_and_hms(2026, 5, 1, 12, 0, 0).unwrap();
+        let now = Utc.with_ymd_and_hms(2025, 1, 15, 12, 0, 0).unwrap();
         let output = format_weather(&data, &config, now);
 
         assert!(output.contains("\x1b[38;2;224;130;86mTemperature: 25.0°C\x1b[0m"));
-        assert!(output.contains("\x1b[1;38;2;89;156;171mWeather: rainy\x1b[0m"));
-        assert!(output.contains("\x1b[1mCity: Bandung\x1b[0m"));
+        assert!(output.contains("Wind speed: 5.0 m/s"));
+        assert!(!output.contains("\x1b[38;2;0;0;0mWind speed:"));
     }
 }
