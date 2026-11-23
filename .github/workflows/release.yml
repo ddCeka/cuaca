@@ -1,4 +1,4 @@
-name: Release
+name: CI & Release
 
 on:
   push:
@@ -13,52 +13,88 @@ permissions:
 
 jobs:
   test:
+    name: Format & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --check
-      - run: cargo test
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Update Cargo.lock
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        run: cargo generate-lockfile
+
+      - name: Commit updated Cargo.lock
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          git config user.name "ddCeka"
+          git config user.email "57752215+ddCeka@users.noreply.github.com"
+          if ! git diff --quiet Cargo.lock; then
+            git add Cargo.lock
+            git commit -m "chore: update Cargo.lock"
+            git push
+          fi
+
+      - name: Run tests
+        run: cargo test --locked
 
   release:
+    name: Build Release (${{ matrix.target }})
     needs: test
     if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            archive: cuaca-linux-x86_64.tar.gz
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            archive: cuaca-macos-aarch64.tar.gz
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            archive: cuaca-macos-x86_64.tar.gz
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            archive: cuaca-windows-x86_64.tar.gz
-    runs-on: ${{ matrix.os }}
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset_name: cuaca-linux-x86_64.tar.gz
+            bin_name: cuaca
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset_name: cuaca-macos-aarch64.tar.gz
+            bin_name: cuaca
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            asset_name: cuaca-macos-x86_64.tar.gz
+            bin_name: cuaca
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: cuaca-windows-x86_64.tar.gz
+            bin_name: cuaca.exe
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package release archive
+        shell: bash
+        run: tar -czf "${{ matrix.asset_name }}" -C "target/${{ matrix.target }}/release" "${{ matrix.bin_name }}"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v3
         with:
-          key: ${{ matrix.target }}
-      - run: cargo build --release --locked --target ${{ matrix.target }}
-      - name: Package archive (Unix)
-        if: runner.os != 'Windows'
-        run: tar -czf "${{ matrix.archive }}" -C "target/${{ matrix.target }}/release" cuaca
-      - name: Package archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: tar -czf "${{ matrix.archive }}" -C "target/${{ matrix.target }}/release" cuaca.exe
-      - uses: softprops/action-gh-release@v3
-        with:
-          files: ${{ matrix.archive }}
+          files: ${{ matrix.asset_name }}
           generate_release_notes: true
