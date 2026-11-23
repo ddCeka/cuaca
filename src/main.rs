@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Write;
 
 #[derive(Deserialize, Serialize)]
+#[serde(default)]
 struct Config {
     api_key: String,
     city: String,
@@ -57,74 +58,16 @@ fn read_config() -> Config {
     }
 
     let config_content = fs::read_to_string(&config_path).expect("Failed to read config file");
+    let config: Config = toml::from_str(&config_content).unwrap_or_default();
 
-    if let Ok(config) = toml::from_str::<Config>(&config_content) {
-        return config;
-    }
-
-    let mut default_config = Config::default();
-    if let Ok(partial_config) = toml::from_str::<toml::Value>(&config_content) {
-        if let Some(table) = partial_config.as_table() {
-            for (key, value) in table {
-                match key.as_str() {
-                    "api_key" => {
-                        if let Some(s) = value.as_str() {
-                            default_config.api_key = s.to_string();
-                        }
-                    }
-                    "city" => {
-                        if let Some(s) = value.as_str() {
-                            default_config.city = s.to_string();
-                        }
-                    }
-                    "units" => {
-                        if let Some(s) = value.as_str() {
-                            default_config.units = s.to_string();
-                        }
-                    }
-                    "timeplus" => {
-                        if let Some(i) = value.as_integer() {
-                            default_config.timeplus = i;
-                        }
-                    }
-                    "timeminus" => {
-                        if let Some(i) = value.as_integer() {
-                            default_config.timeminus = i;
-                        }
-                    }
-                    "showcityname" => {
-                        if let Some(b) = value.as_bool() {
-                            default_config.showcityname = b;
-                        }
-                    }
-                    "showdate" => {
-                        if let Some(b) = value.as_bool() {
-                            default_config.showdate = b;
-                        }
-                    }
-                    "timeformat" => {
-                        if let Some(s) = value.as_str() {
-                            default_config.timeformat = s.to_string();
-                        }
-                    }
-                    "use_colors" => {
-                        if let Some(b) = value.as_bool() {
-                            default_config.use_colors = b;
-                        }
-                    }
-                    _ => (),
-                }
-            }
-        }
-
-        let toml_string =
-            toml::to_string(&default_config).expect("Failed to serialize merged config");
+    let toml_string = toml::to_string(&config).expect("Failed to serialize config");
+    if toml_string != config_content {
         let mut file = File::create(&config_path).expect("Failed to create config file");
         file.write_all(toml_string.as_bytes())
-            .expect("Failed to write merged config to file");
+            .expect("Failed to write config to file");
     }
 
-    default_config
+    config
 }
 
 fn main() {
