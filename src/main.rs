@@ -1,11 +1,11 @@
 use chrono::{DateTime, Duration, TimeZone, Utc};
-use colored::{Color, Colorize};
+use colored::Colorize;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default)]
@@ -27,7 +27,7 @@ struct ColorConfig {
 
 impl Default for ColorConfig {
     fn default() -> Self {
-        Self {
+        ColorConfig {
             city: String::from("#34BFA0"),
             temp: String::from("#E08256"),
             wind: String::from("#34BFA0"),
@@ -62,7 +62,7 @@ struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self {
+        Config {
             api_key: String::new(),
             city: String::new(),
             units: String::from("metric"),
@@ -77,21 +77,13 @@ impl Default for Config {
     }
 }
 
-fn default_config_path() -> PathBuf {
-    let mut path = dirs::config_dir().expect("Failed to get config directory");
-    path.push("cuaca");
-    path.push("cuaca.toml");
-    path
-}
-
 fn load_or_init_config(config_path: &Path) -> Config {
     if !config_path.exists() {
         let default_config = Config::default();
         let toml_string =
             toml::to_string(&default_config).expect("Failed to serialize default config");
-        if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent).expect("Failed to create config directory");
-        }
+        fs::create_dir_all(config_path.parent().unwrap())
+            .expect("Failed to create config directory");
         let mut file = File::create(config_path).expect("Failed to create config file");
         file.write_all(toml_string.as_bytes())
             .expect("Failed to write default config to file");
@@ -104,8 +96,8 @@ fn load_or_init_config(config_path: &Path) -> Config {
     }
 
     let config_content = fs::read_to_string(config_path).expect("Failed to read config file");
-    let config: Config = toml::from_str(&config_content).unwrap_or_default();
 
+    let config: Config = toml::from_str(&config_content).unwrap_or_default();
     let toml_string = toml::to_string(&config).expect("Failed to serialize config");
     if toml_string != config_content {
         let mut file = File::create(config_path).expect("Failed to create config file");
@@ -117,36 +109,49 @@ fn load_or_init_config(config_path: &Path) -> Config {
 }
 
 fn read_config() -> Config {
-    load_or_init_config(&default_config_path())
+    let mut path = dirs::config_dir().expect("Failed to get config directory");
+    path.push("cuaca");
+    path.push("cuaca.toml");
+    load_or_init_config(&path)
 }
 
-fn parse_hex_color(hex: &str) -> Option<Color> {
-    let cleaned = hex.trim().strip_prefix('#').unwrap_or(hex.trim());
-    if cleaned.len() != 6 {
+fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
+    let trimmed = hex.trim().trim_start_matches('#');
+    if trimmed.len() != 6 {
         return None;
     }
-    let r = u8::from_str_radix(&cleaned[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&cleaned[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&cleaned[4..6], 16).ok()?;
-    Some(Color::TrueColor { r, g, b })
+    let r = u8::from_str_radix(&trimmed[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&trimmed[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&trimmed[4..6], 16).ok()?;
+    Some((r, g, b))
 }
 
-fn style_text(text: &str, hex: &str, use_colors: bool, bold: bool) -> String {
+fn apply_hex_color(text: &str, hex: &str, use_colors: bool, bold: bool) -> String {
     if !use_colors {
         return text.to_string();
     }
-    let styled = match parse_hex_color(hex) {
-        Some(color) => text.color(color),
-        None => text.normal(),
-    };
-    if bold {
-        styled.bold().to_string()
-    } else {
-        styled.to_string()
+    match parse_hex_color(hex) {
+        Some((r, g, b)) => {
+            let styled = text.truecolor(r, g, b);
+            if bold {
+                styled.bold().to_string()
+            } else {
+                styled.to_string()
+            }
+        }
+        None => {
+            if bold {
+                text.bold().to_string()
+            } else {
+                text.to_string()
+            }
+        }
     }
 }
 
-fn format_weather(weather_data: &Value, config: &Config, now: DateTime<Utc>) -> String {
+fn format_weather(weather_data: &Value, config: &Config, now_utc: DateTime<Utc>) -> String {
+    colored::control::set_override(config.use_colors);
+
     let weather = weather_data["weather"][0]["main"]
         .as_str()
         .unwrap_or("Unknown");
@@ -155,20 +160,25 @@ fn format_weather(weather_data: &Value, config: &Config, now: DateTime<Utc>) -> 
     let sunrise = weather_data["sys"]["sunrise"].as_i64().unwrap_or(0);
     let sunset = weather_data["sys"]["sunset"].as_i64().unwrap_or(0);
 
-    let (windspeed_unit, temp_unit) = match config.units.as_str() {
-        "imperial" => ("mph", "°F"),
-        "metric" => ("m/s", "°C"),
-        _ => ("m/s", "K"),
+    let windspeed_unit = match config.units.as_str() {
+        "imperial" => "mph",
+        _ => "m/s",
     };
 
-    let temp_str = style_text(
+    let temp_unit = match config.units.as_str() {
+        "metric" => "°C",
+        "imperial" => "°F",
+        _ => "K",
+    };
+
+    let temp_str = apply_hex_color(
         &format!("Temperature: {:.1}{}", temp, temp_unit),
         &config.color.temp,
         config.use_colors,
         false,
     );
 
-    let wind_speed_str = style_text(
+    let wind_speed_str = apply_hex_color(
         &format!("Wind speed: {:.1} {}", wind_speed, windspeed_unit),
         &config.color.wind,
         config.use_colors,
@@ -184,11 +194,22 @@ fn format_weather(weather_data: &Value, config: &Config, now: DateTime<Utc>) -> 
         _ => "%H:%M",
     };
 
-    let sunrisestring = sunrise_datetime.format(time_format).to_string();
-    let sunsetstring = sunset_datetime.format(time_format).to_string();
+    let sunrise_str = apply_hex_color(
+        &format!("Sunrise: {}", sunrise_datetime.format(time_format)),
+        &config.color.sunrise,
+        config.use_colors,
+        false,
+    );
+
+    let sunset_str = apply_hex_color(
+        &format!("Sunset: {}", sunset_datetime.format(time_format)),
+        &config.color.sunset,
+        config.use_colors,
+        false,
+    );
 
     let city_str = if config.showcityname {
-        style_text(
+        apply_hex_color(
             &format!("City: {}", config.city),
             &config.color.city,
             config.use_colors,
@@ -197,20 +218,6 @@ fn format_weather(weather_data: &Value, config: &Config, now: DateTime<Utc>) -> 
     } else {
         String::new()
     };
-
-    let sunrise_str = style_text(
-        &format!("Sunrise: {sunrisestring}"),
-        &config.color.sunrise,
-        config.use_colors,
-        false,
-    );
-
-    let sunset_str = style_text(
-        &format!("Sunset: {sunsetstring}"),
-        &config.color.sunset,
-        config.use_colors,
-        false,
-    );
 
     let (art, weather_text, weather_hex) = match weather {
         "Clear" => (
@@ -293,17 +300,12 @@ fn format_weather(weather_data: &Value, config: &Config, now: DateTime<Utc>) -> 
         ),
     };
 
-    let weather_str = style_text(&weather_text, weather_hex, config.use_colors, true);
+    let weather_str = apply_hex_color(&weather_text, weather_hex, config.use_colors, true);
 
     let date_str = if config.showdate {
-        let formatted_date = (now + offset).format("%A, %d %B %Y").to_string();
-        let label = style_text("Date: ", &config.color.date_label, config.use_colors, false);
-        let value = style_text(
-            &formatted_date,
-            &config.color.date_value,
-            config.use_colors,
-            false,
-        );
+        let date = (now_utc + offset).format("%A, %d %B %Y").to_string();
+        let label = apply_hex_color("Date: ", &config.color.date_label, config.use_colors, false);
+        let value = apply_hex_color(&date, &config.color.date_value, config.use_colors, false);
         format!("{label}{value}")
     } else {
         String::new()
@@ -321,9 +323,10 @@ fn format_weather(weather_data: &Value, config: &Config, now: DateTime<Utc>) -> 
 
     art.iter()
         .zip(details.iter())
-        .map(|(prefix, detail)| format!("{prefix}{detail}"))
+        .map(|(art_line, detail)| format!("{art_line}{detail}"))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("
+")
 }
 
 fn main() {
@@ -355,50 +358,66 @@ mod tests {
     use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn temp_config_file(name: &str) -> PathBuf {
-        let nanos = SystemTime::now()
+    fn temp_config_path(test_name: &str) -> std::path::PathBuf {
+        let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         std::env::temp_dir()
-            .join(format!("cuaca_test_{name}_{nanos}"))
+            .join(format!("cuaca_test_{}_{}", test_name, unique))
             .join("cuaca.toml")
     }
 
     #[test]
     fn creates_default_config_when_missing() {
-        let path = temp_config_file("missing");
-        let config = load_or_init_config(&path);
+        let path = temp_config_path("missing");
+        let cfg = load_or_init_config(&path);
 
-        assert_eq!(config, Config::default());
         assert!(path.exists());
+        assert_eq!(cfg, Config::default());
 
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }
 
     #[test]
     fn merges_partial_config_with_defaults() {
-        let path = temp_config_file("partial");
+        let path = temp_config_path("partial");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "api_key = \"test_key\"\ncity = \"Surabaya\"\n").unwrap();
+        fs::write(
+            &path,
+            "api_key = "abc123"
+city = "Jakarta"
 
-        let config = load_or_init_config(&path);
+[color]
+temp = "#123456"
+",
+        )
+        .unwrap();
 
-        assert_eq!(config.api_key, "test_key");
-        assert_eq!(config.city, "Surabaya");
-        assert_eq!(config.units, "metric");
-        assert_eq!(config.timeformat, "24");
-        assert_eq!(config.color, ColorConfig::default());
+        let cfg = load_or_init_config(&path);
+        assert_eq!(cfg.api_key, "abc123");
+        assert_eq!(cfg.city, "Jakarta");
+        assert_eq!(cfg.units, "metric");
+        assert_eq!(cfg.timeformat, "24");
+        assert_eq!(cfg.color.temp, "#123456");
+        assert_eq!(cfg.color.city, "#34BFA0");
 
-        let saved = fs::read_to_string(&path).unwrap();
-        assert!(saved.contains("[color]"));
-        assert!(saved.contains("temp = \"#E08256\""));
+        let persisted = fs::read_to_string(&path).unwrap();
+        assert!(persisted.contains("units = "metric""));
+        assert!(persisted.contains("[color]"));
+        assert!(persisted.contains("city = "#34BFA0""));
 
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }
 
     #[test]
     fn formats_metric_weather_with_timezone_offset() {
+        let data = json!({
+            "weather": [{ "main": "Clear" }],
+            "main": { "temp": 28.45 },
+            "wind": { "speed": 3.2 },
+            "sys": { "sunrise": 0, "sunset": 43200 }
+        });
         let config = Config {
             city: "Surabaya".to_string(),
             units: "metric".to_string(),
@@ -410,30 +429,27 @@ mod tests {
             use_colors: false,
             ..Config::default()
         };
+        let now = Utc.with_ymd_and_hms(2026, 5, 10, 20, 0, 0).unwrap();
 
-        let sample = json!({
-            "weather": [{ "main": "Clear" }],
-            "main": { "temp": 30.4 },
-            "wind": { "speed": 3.2 },
-            "sys": { "sunrise": 1700000000, "sunset": 1700043200 }
-        });
-
-        let now = Utc.with_ymd_and_hms(2026, 11, 23, 20, 0, 0).unwrap();
-        let output = format_weather(&sample, &config, now);
-
+        let output = format_weather(&data, &config, now);
         assert!(output.contains("City: Surabaya"));
         assert!(output.contains("Weather: clear"));
-        assert!(output.contains("Temperature: 30.4°C"));
+        assert!(output.contains("Temperature: 28.4°C"));
         assert!(output.contains("Wind speed: 3.2 m/s"));
-        assert!(output.contains("Sunrise: 05:13"));
-        assert!(output.contains("Sunset: 17:13"));
-        assert!(output.contains("Date: Tuesday, 24 November 2026"));
+        assert!(output.contains("Sunrise: 07:00"));
+        assert!(output.contains("Sunset: 19:00"));
+        assert!(output.contains("Date: Monday, 11 May 2026"));
     }
 
     #[test]
     fn formats_imperial_12h_and_fallback_weather() {
+        let data = json!({
+            "weather": [{ "main": "Mist" }],
+            "main": { "temp": 72.0 },
+            "wind": { "speed": 10.5 },
+            "sys": { "sunrise": 0, "sunset": 46800 }
+        });
         let config = Config {
-            city: "New York".to_string(),
             units: "imperial".to_string(),
             showcityname: false,
             showdate: false,
@@ -441,51 +457,39 @@ mod tests {
             use_colors: false,
             ..Config::default()
         };
+        let now = Utc.with_ymd_and_hms(2026, 5, 10, 12, 0, 0).unwrap();
 
-        let sample = json!({
-            "weather": [{ "main": "Mist" }],
-            "main": { "temp": 68.0 },
-            "wind": { "speed": 10.5 },
-            "sys": { "sunrise": 1700000000, "sunset": 1700043200 }
-        });
-
-        let now = Utc.with_ymd_and_hms(2026, 11, 23, 12, 0, 0).unwrap();
-        let output = format_weather(&sample, &config, now);
-
+        let output = format_weather(&data, &config, now);
         assert!(!output.contains("City:"));
         assert!(!output.contains("Date:"));
         assert!(output.contains("Weather: Mist"));
-        assert!(output.contains("Temperature: 68.0°F"));
+        assert!(output.contains("Temperature: 72.0°F"));
         assert!(output.contains("Wind speed: 10.5 mph"));
-        assert!(output.contains("Sunrise: 10:13 PM"));
-        assert!(output.contains("Sunset: 10:13 AM"));
+        assert!(output.contains("Sunrise: 12:00 AM"));
+        assert!(output.contains("Sunset: 01:00 PM"));
     }
 
     #[test]
     fn applies_hex_truecolor_and_ignores_invalid_hex() {
         colored::control::set_override(true);
 
+        let data = json!({
+            "weather": [{ "main": "Rain" }],
+            "main": { "temp": 25.0 },
+            "wind": { "speed": 4.0 },
+            "sys": { "sunrise": 0, "sunset": 3600 }
+        });
         let mut config = Config {
             use_colors: true,
             ..Config::default()
         };
-        config.color.temp = "#E08256".to_string();
         config.color.wind = "not-a-hex".to_string();
 
-        let sample = json!({
-            "weather": [{ "main": "Rain" }],
-            "main": { "temp": 25.0 },
-            "wind": { "speed": 4.0 },
-            "sys": { "sunrise": 1700000000, "sunset": 1700043200 }
-        });
+        let now = Utc.with_ymd_and_hms(2026, 5, 10, 12, 0, 0).unwrap();
+        let output = format_weather(&data, &config, now);
 
-        let now = Utc.with_ymd_and_hms(2026, 11, 23, 12, 0, 0).unwrap();
-        let output = format_weather(&sample, &config, now);
-
-        assert!(output.contains("\x1b[38;2;224;130;86mTemperature: 25.0°C\x1b[0m"));
+        assert!(output.contains("[38;2;224;130;86mTemperature: 25.0°C[0m"));
         assert!(output.contains("Wind speed: 4.0 m/s"));
-        assert!(!output.contains("\x1b[38;2;52;191;160mWind speed:"));
-
-        colored::control::unset_override();
+        assert!(!output.contains("[38;2;52;191;160mWind speed:"));
     }
 }
