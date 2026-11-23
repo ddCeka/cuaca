@@ -60,17 +60,24 @@ fn read_config() -> Config {
     let config_content = fs::read_to_string(&config_path).expect("Failed to read config file");
 
     if let Ok(config) = toml::from_str::<Config>(&config_content) {
+        let toml_string =
+            toml::to_string(&config).expect("Failed to serialize config");
+        if toml_string.trim() != config_content.trim() {
+            let mut file = File::create(&config_path).expect("Failed to create config file");
+            file.write_all(toml_string.as_bytes())
+                .expect("Failed to write merged config to file");
+        }
         return config;
     }
 
-    let merged_config: Config = toml::from_str(&config_content).unwrap_or_default();
+    let default_config = Config::default();
     let toml_string =
-        toml::to_string(&merged_config).expect("Failed to serialize merged config");
+        toml::to_string(&default_config).expect("Failed to serialize default config");
     let mut file = File::create(&config_path).expect("Failed to create config file");
     file.write_all(toml_string.as_bytes())
-        .expect("Failed to write merged config to file");
+        .expect("Failed to write default config to file");
 
-    merged_config
+    default_config
 }
 
 fn main() {
@@ -125,13 +132,13 @@ fn main() {
             format!("Wind speed: {:.1} {}", wind_speed, windspeedunits)
         };
 
+        let offset = Duration::hours(config.timeplus) - Duration::hours(config.timeminus);
+
         let sunrise_datetime: DateTime<Utc> = Utc.timestamp_opt(sunrise, 0).unwrap();
         let sunset_datetime: DateTime<Utc> = Utc.timestamp_opt(sunset, 0).unwrap();
 
-        let adjusted_sunrise =
-            sunrise_datetime + Duration::hours(config.timeplus) - Duration::hours(config.timeminus);
-        let adjusted_sunset =
-            sunset_datetime + Duration::hours(config.timeplus) - Duration::hours(config.timeminus);
+        let adjusted_sunrise = sunrise_datetime + offset;
+        let adjusted_sunset = sunset_datetime + offset;
 
         let time_format = match config.timeformat.as_str() {
             "12" => "%I:%M %p",
@@ -142,7 +149,7 @@ fn main() {
         let sunsetstring = adjusted_sunset.format(time_format).to_string();
 
         let date = if config.showdate {
-            let now = Utc::now();
+            let now = Utc::now() + offset;
             now.format("%A, %d %B %Y").to_string()
         } else {
             String::new()
