@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use colored::Colorize;
-use reqwest::blocking::get;
+use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
@@ -58,27 +58,33 @@ fn read_config() -> Config {
     }
 
     let config_content = fs::read_to_string(&config_path).expect("Failed to read config file");
-    let config: Config = toml::from_str(&config_content).unwrap_or_default();
 
-    let toml_string = toml::to_string(&config).expect("Failed to serialize config");
-    if toml_string != config_content {
-        let mut file = File::create(&config_path).expect("Failed to create config file");
-        file.write_all(toml_string.as_bytes())
-            .expect("Failed to write config to file");
+    if let Ok(config) = toml::from_str::<Config>(&config_content) {
+        return config;
     }
 
-    config
+    let merged_config: Config = toml::from_str(&config_content).unwrap_or_default();
+    let toml_string =
+        toml::to_string(&merged_config).expect("Failed to serialize merged config");
+    let mut file = File::create(&config_path).expect("Failed to create config file");
+    file.write_all(toml_string.as_bytes())
+        .expect("Failed to write merged config to file");
+
+    merged_config
 }
 
 fn main() {
     let config = read_config();
 
-    let url = format!(
-        "https://api.openweathermap.org/data/2.5/weather?q={}&units={}&APPID={}",
-        config.city, config.units, config.api_key
-    );
-
-    let response = get(&url).expect("Failed to send request");
+    let response = Client::new()
+        .get("https://api.openweathermap.org/data/2.5/weather")
+        .query(&[
+            ("q", config.city.as_str()),
+            ("units", config.units.as_str()),
+            ("APPID", config.api_key.as_str()),
+        ])
+        .send()
+        .expect("Failed to send request");
 
     if response.status().is_success() {
         let weather_data: Value = response.json().expect("Failed to parse JSON");
